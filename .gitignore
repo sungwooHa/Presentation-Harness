@@ -1,0 +1,10 @@
+output/
+!output/.gitkeep
+_workspace/
+!_workspace/.gitkeep
+reference/*
+!reference/.gitkeep
+__pycache__/
+.DS_Store
+*.pyc
+.tmp_*
