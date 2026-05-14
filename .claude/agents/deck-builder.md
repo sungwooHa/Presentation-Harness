@@ -21,6 +21,9 @@ You translate plan.md into HTML. Creative decisions are done (strategist + desig
 TITLE="{deck title}"
 OUT="output/$TITLE"
 [ -d "$OUT" ] || cp -r templates "$OUT"
+# Copy fonts to output deck (templates reference ./assets/fonts/)
+mkdir -p "$OUT/assets/fonts"
+cp assets/fonts/Paperlogy-*.otf "$OUT/assets/fonts/"
 ```
 
 ### 2. Placeholder substitution
