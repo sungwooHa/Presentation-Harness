@@ -165,6 +165,32 @@ Phase 3.5: FEEDBACK CONSOLIDATION
 - **기본값**: 3) 중단하고 수동 수정
 - 검증은 엄격함을 우선한다 — 친절한 비평이 아니라 정확한 비평
 
+## 산출물 폴더 규칙
+
+- 모든 산출물은 반드시 `output/{title}/` 폴더 안에 생성한다
+- 루트에 `index.html`, `스크립트_화면.html` 등을 직접 생성 금지
+- 폴더 구조:
+  ```
+  output/{title}/
+  ├── index.html
+  ├── 스크립트_화면.html
+  ├── CLAUDE.md
+  ├── assets/fonts/
+  ├── assets/images/
+  └── index.pptx (선택)
+  ```
+
+## 완료 필수 프로세스
+
+작업 완료 시 아래 프로세스를 **반드시** 순서대로 수행한다. 생략 불가.
+
+1. **피드백 통합**: Phase 3 검증 결과에서 CRITICAL/ERROR 추출 → `feedback/lessons.md` 누적, `feedback/patterns.json` 갱신
+2. **에이전트 강화**: 반복 패턴(2회+)을 해당 agent `.md`의 `## Learned patterns`에 패치
+3. **템플릿 반영**: 범용 교훈은 `templates/CLAUDE.md`, `templates/index.html` 등 템플릿에도 반영
+4. **git push**: 변경사항 커밋 후 `git push origin main` — 다음 clone에 강화된 지침 반영
+
+> 사용자가 "완료", "끝", "다 됐다" 등 완료 신호를 보내면 이 프로세스를 자동 시작한다.
+
 ## 핵심 규칙
 
 - 모든 출력은 한국어
