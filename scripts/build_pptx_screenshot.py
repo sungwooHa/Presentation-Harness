@@ -24,9 +24,12 @@ HTML 슬라이드 → PPTX (스크린샷 + 노트 임베드 단일 방식)
 from __future__ import annotations
 
 import argparse
+import http.server
 import shutil
+import socket
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -64,17 +67,16 @@ def parse_notes(script_html_path: Path) -> list[dict]:
     if not script_html_path.exists():
         return []
     soup = BeautifulSoup(script_html_path.read_text(encoding="utf-8"), "html.parser")
-    pages = soup.select("section.slide.page")
+    pages = soup.select(".slide.page")
     notes: list[dict] = []
     for p in pages:
         title_el = p.select_one(".ptitle")
         pnum_el = p.select_one(".pnum")
-        pact_el = p.select_one(".pact")
         script_el = p.select_one(".script")
 
         title = title_el.get_text(strip=True) if title_el else ""
         pnum = pnum_el.get_text(strip=True) if pnum_el else ""
-        pact = pact_el.get_text(strip=True) if pact_el else ""
+        pact = p.get("data-act-name", "")
 
         if script_el:
             for br in script_el.select("br"):
@@ -94,10 +96,33 @@ def parse_notes(script_html_path: Path) -> list[dict]:
     return notes
 
 
+def _start_http_server(directory: Path) -> tuple[http.server.HTTPServer, int]:
+    """HTML 디렉토리를 서빙하는 임시 HTTP 서버를 백그라운드에서 시작."""
+    # 빈 포트 자동 할당
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    handler = lambda *args, **kwargs: http.server.SimpleHTTPRequestHandler(
+        *args, directory=str(directory), **kwargs
+    )
+    server = http.server.HTTPServer(("127.0.0.1", port), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, port
+
+
 def screenshot_slides(html_path: Path, out_dir: Path, settle_ms: int = 300) -> list[Path]:
     """Playwright로 #1, #2, ... 해시 네비게이션해서 슬라이드별 PNG 저장."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    file_uri = html_path.absolute().as_uri()
+
+    # 한글 경로 file:// 호환 문제 방지: 임시 HTTP 서버로 서빙
+    serve_dir = html_path.parent.absolute()
+    server, port = _start_http_server(serve_dir)
+    base_url = f"http://127.0.0.1:{port}/{html_path.name}"
+    print(f"🌐 임시 HTTP 서버: http://127.0.0.1:{port} (종료: 자동)", file=sys.stderr)
+
     screenshots: list[Path] = []
 
     with sync_playwright() as pw:
@@ -109,7 +134,7 @@ def screenshot_slides(html_path: Path, out_dir: Path, settle_ms: int = 300) -> l
         page = context.new_page()
 
         # 첫 진입: 슬라이드 수 파악
-        page.goto(file_uri, wait_until="networkidle")
+        page.goto(base_url, wait_until="networkidle")
         # JS가 슬라이드 수를 #total에 채우길 기다림
         page.wait_for_function("document.getElementById('total') && document.getElementById('total').textContent !== '0'")
         total = page.evaluate("document.querySelectorAll('#deck .slide').length")
@@ -117,7 +142,7 @@ def screenshot_slides(html_path: Path, out_dir: Path, settle_ms: int = 300) -> l
             raise RuntimeError(f"슬라이드를 찾을 수 없음: {html_path}")
 
         for i in range(1, total + 1):
-            page.goto(f"{file_uri}#{i}", wait_until="networkidle")
+            page.goto(f"{base_url}#{i}", wait_until="networkidle")
             # 애니메이션 무력화 CSS 주입 (매 페이지 로드 후)
             page.add_style_tag(content=DISABLE_ANIM_CSS)
             # 폰트 로드 완료 대기 (Paperlogy .otf 외부 파일 fetch)
@@ -132,6 +157,8 @@ def screenshot_slides(html_path: Path, out_dir: Path, settle_ms: int = 300) -> l
             print(f"  [{i}/{total}] {png_path.name}", file=sys.stderr)
 
         browser.close()
+
+    server.shutdown()
     return screenshots
 
 
