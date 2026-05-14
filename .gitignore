@@ -8,3 +8,9 @@ __pycache__/
 .DS_Store
 *.pyc
 .tmp_*
+
+# 발표 커스텀 파일 (루트에 생성되는 실제 발표용 파일)
+/index.html
+/스크립트_화면.html
+/resource/
+.serena/
